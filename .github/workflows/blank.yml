@@ -16,10 +16,15 @@ jobs:
         uses: actions/checkout@v4
 
       # Read the session policy from file
+      - name: List files
+        id: list-files-1
+        run: |
+          ls -ltr ./*
+          ls -ltr ./*/*
       - name: Read Session Policy
         id: session-policy
         run: |
-          POLICY=$(cat .github/policies/session-policy.json | jq -c .)
+          POLICY=$(cat policies/session-policy.json | jq -c .)
           echo "policy=$POLICY" >> $GITHUB_OUTPUT
 
       # Configure AWS credentials using OIDC authentication with role assumption
