@@ -1,0 +1,66 @@
+name: AWS Pipeline with Inline Session Policy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  aws-operations:
+    runs-on: ubuntu-latest
+    steps:
+      # Configure AWS credentials using OIDC authentication with role assumption
+      # The inline session policy provides an additional security layer by denying
+      # specific high-risk actions even if the assumed role would normally permit them.
+      # This implements defense-in-depth by ensuring that even if the role permissions
+      # are too broad, critical destructive operations remain blocked during this session.
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # ARN of the IAM role to assume (replace with your actual role ARN)
+          role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsRole
+          # AWS region for operations
+          aws-region: us-east-1
+          # Session name for CloudTrail tracking and auditing
+          role-session-name: github-actions-${{ github.run_id }}
+          # Inline session policy that denies specific destructive actions
+          # This policy restricts permissions beyond what the role allows, providing
+          # an additional safeguard against accidental or malicious destructive operations.
+          # The effective permissions are the intersection of the role policy and this session policy.
+          inline-session-policy: |
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Deny",
+                  "Action": [
+                    "s3:DeleteBucket",
+                    "s3:DeleteBucketPolicy",
+                    "ec2:TerminateInstances",
+                    "rds:DeleteDBInstance",
+                    "dynamodb:DeleteTable"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+
+      # Verify AWS credentials are configured correctly
+      # This step validates that the credential configuration was successful
+      # by calling a simple AWS STS API to retrieve the caller identity.
+      # The output shows the assumed role ARN, account ID, and user ID,
+      # confirming that subsequent steps can interact with AWS services.
+      - name: Verify AWS Credentials
+        run: aws sts get-caller-identity
+
+      # Create an S3 bucket
+      # This demonstrates using AWS credentials to perform an actual AWS operation.
+      # The bucket name includes the GitHub run ID to ensure uniqueness.
+      # Note: AWS CLI v2 is pre-installed on ubuntu-latest runners, no installation needed.
+      - name: Create S3 Bucket
+        run: |
+          BUCKET_NAME="github-actions-demo-${{ github.run_id }}"
+          aws s3 mb s3://$BUCKET_NAME --region us-east-1
+          echo "Created bucket: $BUCKET_NAME"
