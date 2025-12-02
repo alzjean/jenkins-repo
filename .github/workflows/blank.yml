@@ -36,7 +36,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           # ARN of the IAM role to assume (replace with your actual role ARN)
-          role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsRole
+          role-to-assume: arn:aws:iam::137202777938:role/GitHubActionsRole
           # AWS region for operations
           aws-region: eu-west-3
           # Session name for CloudTrail tracking and auditing
