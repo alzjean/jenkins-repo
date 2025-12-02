@@ -11,6 +11,17 @@ jobs:
   aws-operations:
     runs-on: ubuntu-slim
     steps:
+      # Checkout repository to access policy files
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Read the session policy from file
+      - name: Read Session Policy
+        id: session-policy
+        run: |
+          POLICY=$(cat .github/policies/session-policy.json | jq -c .)
+          echo "policy=$POLICY" >> $GITHUB_OUTPUT
+
       # Configure AWS credentials using OIDC authentication with role assumption
       # The inline session policy provides an additional security layer by denying
       # specific high-risk actions even if the assumed role would normally permit them.
@@ -20,37 +31,17 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           # ARN of the IAM role to assume (replace with your actual role ARN)
-          role-to-assume: arn:aws:iam::137202777938:role/GitHubActionsRole
+          role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsRole
           # AWS region for operations
           aws-region: eu-west-3
           # Session name for CloudTrail tracking and auditing
           role-session-name: github-actions-${{ github.run_id }}
-          # Inline session policy that denies specific destructive actions
+          # Inline session policy loaded from external file (.github/policies/session-policy.json)
           # This policy restricts permissions beyond what the role allows, providing
           # an additional safeguard against accidental or malicious destructive operations.
           # The effective permissions are the intersection of the role policy and this session policy.
-          inline-session-policy: |
-            {
-              "Version": "2012-10-17",
-              "Statement": [
-                {
-                  "Effect": "Allow",
-                  "Action": "*",
-                  "Resource": "*"
-                },
-                {
-                  "Effect": "Deny",
-                  "Action": [
-                    "s3:DeleteBucket",
-                    "s3:DeleteBucketPolicy",
-                    "ec2:TerminateInstances",
-                    "rds:DeleteDBInstance",
-                    "dynamodb:DeleteTable"
-                  ],
-                  "Resource": "*"
-                }
-              ]
-            }
+          # Note: Session policies require explicit Allow statements - they act as permission boundaries.
+          inline-session-policy: ${{ steps.session-policy.outputs.policy }}
 
       # Install Python dependencies
       # boto3 is the AWS SDK for Python, used to interact with AWS services
