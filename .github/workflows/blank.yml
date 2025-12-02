@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   aws-operations:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       # Configure AWS credentials using OIDC authentication with role assumption
       # The inline session policy provides an additional security layer by denying
@@ -22,7 +22,7 @@ jobs:
           # ARN of the IAM role to assume (replace with your actual role ARN)
           role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsRole
           # AWS region for operations
-          aws-region: us-east-1
+          aws-region: eu-west-3
           # Session name for CloudTrail tracking and auditing
           role-session-name: github-actions-${{ github.run_id }}
           # Inline session policy that denies specific destructive actions
@@ -47,20 +47,55 @@ jobs:
               ]
             }
 
+      # Install Python dependencies
+      # boto3 is the AWS SDK for Python, used to interact with AWS services
+      - name: Install boto3
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install boto3
+
       # Verify AWS credentials are configured correctly
       # This step validates that the credential configuration was successful
-      # by calling a simple AWS STS API to retrieve the caller identity.
+      # by calling AWS STS to retrieve the caller identity using boto3.
       # The output shows the assumed role ARN, account ID, and user ID,
       # confirming that subsequent steps can interact with AWS services.
       - name: Verify AWS Credentials
-        run: aws sts get-caller-identity
+        run: |
+          python3 << 'EOF'
+          import boto3
+          import json
+          
+          sts = boto3.client('sts')
+          identity = sts.get_caller_identity()
+          
+          print("Caller Identity:")
+          print(json.dumps(identity, indent=2, default=str))
+          EOF
 
-      # Create an S3 bucket
+      # Create an S3 bucket using boto3
       # This demonstrates using AWS credentials to perform an actual AWS operation.
       # The bucket name includes the GitHub run ID to ensure uniqueness.
-      # Note: AWS CLI v2 is pre-installed on ubuntu-latest runners, no installation needed.
+      # boto3 automatically uses the AWS credentials configured by the previous step.
       - name: Create S3 Bucket
         run: |
-          BUCKET_NAME="github-actions-demo-${{ github.run_id }}"
-          aws s3 mb s3://$BUCKET_NAME --region us-east-1
-          echo "Created bucket: $BUCKET_NAME"
+          python3 << 'EOF'
+          import boto3
+          import os
+          
+          # Get the GitHub run ID from environment
+          run_id = "${{ github.run_id }}"
+          bucket_name = f"github-actions-demo-{run_id}"
+          region = "eu-west-3"
+          
+          # Create S3 client
+          s3 = boto3.client('s3', region_name=region)
+          
+          # Create the bucket with LocationConstraint for non-us-east-1 regions
+          s3.create_bucket(
+              Bucket=bucket_name,
+              CreateBucketConfiguration={'LocationConstraint': region}
+          )
+          
+          print(f"Created bucket: {bucket_name}")
+          print(f"Region: {region}")
+          EOF
